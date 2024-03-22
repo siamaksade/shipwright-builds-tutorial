@@ -1,0 +1,161 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: buildpacks
+spec:
+  params:
+    - default: 'paketobuildpacks/builder-jammy-tiny:0.0.176'
+      name: cnbBuilderImage
+      type: string
+    - default: ''
+      name: gitRepo
+      type: string
+    - default: 'docker.io/buildpacksio/lifecycle:0.17.0'
+      name: cnbLifecycleImage
+      type: string
+    - default: ''
+      name: cnbBuildImage
+      type: string
+    - default:
+        - ''
+      description: Environment variables to set during _build-time_.
+      name: cnbBuildEnvVars
+      type: array
+    - default: 'paketocommunity/run-ubi-base:latest'
+      name: cnbRunImage
+      type: string
+    - default: info
+      name: cnbLogLevel
+      type: string
+    - default: 'true'
+      name: cnbExperimentalMode
+      type: string
+    - default: ''
+      name: AppImage
+      type: string
+    - default: .
+      name: sourceSubPath
+      type: string
+  tasks:
+    - name: fetch-repository
+      params:
+        - name: url
+          value: $(params.gitRepo)
+        - name: deleteExisting
+          value: 'true'
+      taskRef:
+        kind: ClusterTask
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: source-ws
+    - name: buildpacks-extension-check
+      params:
+        - name: builderImage
+          value: $(params.cnbBuilderImage)
+      taskRef:
+        params:
+          - name: url
+            value: 'https://github.com/redhat-buildpacks/catalog.git'
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: tekton/task/buildpacks-extension-check/01/buildpacks-extension-check.yaml
+        resolver: git
+      runAfter:
+        - buildpacks
+    - name: buildpacks
+      params:
+        - name: APP_IMAGE
+          value: $(params.AppImage)
+        - name: SOURCE_SUBPATH
+          value: $(params.sourceSubPath)
+        - name: CNB_BUILDER_IMAGE
+          value: $(params.cnbBuilderImage)
+        - name: CNB_LIFECYCLE_IMAGE
+          value: $(params.cnbLifecycleImage)
+        - name: CNB_EXPERIMENTAL_MODE
+          value: $(params.cnbExperimentalMode)
+        - name: CNB_LOG_LEVEL
+          value: $(params.cnbLogLevel)
+        - name: CNB_RUN_IMAGE
+          value: $(params.cnbRunImage)
+        - name: CNB_BUILD_IMAGE
+          value: $(params.cnbBuildImage)
+        - name: CNB_USER_ID
+          value: $(tasks.buildpacks-extension-check.results.uid)
+        - name: CNB_GROUP_ID
+          value: $(tasks.buildpacks-extension-check.results.gid)
+        - name: CNB_ENV_VARS
+          value:
+            - $(params.cnbBuildEnvVars)
+      runAfter:
+        - fetch-repository
+      taskRef:
+        params:
+          - name: url
+            value: 'https://github.com/redhat-buildpacks/catalog.git'
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: tekton/task/buildpacks-phases/01/buildpacks-phases.yaml
+        resolver: git
+      when:
+        - input: $(tasks.buildpacks-extension-check.results.extensionLabels)
+          operator: in
+          values:
+            - empty
+      workspaces:
+        - name: source
+          workspace: source-ws
+        - name: cache
+          workspace: cache-ws
+    - name: buildpacks-extension
+      params:
+        - name: APP_IMAGE
+          value: $(params.AppImage)
+        - name: SOURCE_SUBPATH
+          value: $(params.sourceSubPath)
+        - name: CNB_BUILDER_IMAGE
+          value: $(params.cnbBuilderImage)
+        - name: CNB_LIFECYCLE_IMAGE
+          value: $(params.cnbLifecycleImage)
+        - name: CNB_EXPERIMENTAL_MODE
+          value: $(params.cnbExperimentalMode)
+        - name: CNB_LOG_LEVEL
+          value: $(params.cnbLogLevel)
+        - name: CNB_RUN_IMAGE
+          value: $(params.cnbRunImage)
+        - name: CNB_BUILD_IMAGE
+          value: $(params.cnbBuildImage)
+        - name: CNB_USER_ID
+          value: $(tasks.buildpacks-extension-check.results.uid)
+        - name: CNB_GROUP_ID
+          value: $(tasks.buildpacks-extension-check.results.gid)
+        - name: CNB_ENV_VARS
+          value:
+            - $(params.cnbBuildEnvVars)
+      taskRef:
+        params:
+          - name: url
+            value: 'https://github.com/redhat-buildpacks/catalog.git'
+          - name: revision
+            value: main
+          - name: pathInRepo
+            value: tekton/task/buildpacks-extension-phases/01/buildpacks-extension-phases.yaml
+        resolver: git
+      runAfter:
+        - buildpacks-extension-check
+      when:
+        - input: $(tasks.buildpacks-extension-check.results.extensionLabels)
+          operator: notin
+          values:
+            - empty
+      workspaces:
+        - name: source
+          workspace: source-ws
+        - name: cache
+          workspace: cache-ws
+  workspaces:
+    - name: source-ws
+    - name: cache-ws

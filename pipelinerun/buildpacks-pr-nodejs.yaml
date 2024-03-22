@@ -1,0 +1,31 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: sample-buildpacks-nodejs-
+spec:
+  params:
+    - name: gitRepo
+      value: https://github.com/shipwright-io/sample-nodejs
+    - name: AppImage
+      value: image-registry.openshift-image-registry.svc:5000/demo/sample-nodejs
+    - name: sourceSubPath
+      value: source-build-heroku
+  pipelineRef:
+    name: buildpacks
+  workspaces:
+    - name: source-ws
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
+    - name: cache-ws
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
