@@ -1,0 +1,22 @@
+apiVersion: shipwright.io/v1beta1
+kind: Build
+metadata:
+  name: sample-buildpacks-nodejs
+spec:
+  source:
+    type: Git
+    git: 
+      url: https://github.com/ayushsatyam146/node-example.git
+    contextDir: source-build
+  strategy:
+    name: buildpacks
+    kind: ClusterBuildStrategy
+  retention:
+    atBuildDeletion: true
+  paramValues:
+    - name: run-image
+      value: paketocommunity/run-ubi-base:latest
+    - name: cnb-builder-image
+      value: paketobuildpacks/builder-jammy-tiny:0.0.176
+  output:
+    image: image-registry.openshift-image-registry.svc:5000/demo/sample-buildpacks-nodejs
